@@ -2,16 +2,19 @@ import eventlet
 eventlet.monkey_patch()
 
 import json
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import cross_origin
 from flask_socketio import SocketIO, join_room, leave_room
 
+not_found_message = "<main style='padding: 25px'><h1>404 Error — No index.html found in the base path.</h1><p>Please provide one to visualize `tqdm` updates.</p></main>"
+
 class Server:
     
-    def __init__(self, host, port):
+    def __init__(self, base_path, host, port):
+        self.base = base_path
         self.host = host
         self.port = port
-        self.app, self.socketio = create(host, port)
+        self.app, self.socketio = create(base_path, host, port)
 
     def run(self):
         self.socketio.run(self.app, host=self.host, port=self.port)
@@ -24,13 +27,28 @@ def get_url(host, port, metadata):
     page_id = str(ip)
     return f"http://{host}:{port}/view/{page_id}" 
 
-def create(host, port):
+def create(base_path, host, port):
 
     app = Flask(__name__)
     app.config['CORS_HEADERS'] = 'Content-Type'
     socketio = SocketIO(app, cors_allowed_origins="*")
 
     STATES = {}
+
+    @app.route('/')
+    def index():
+        try:
+            return send_file(base_path / 'index.html')
+        except:
+            return not_found_message
+
+
+    @app.route('/view/<path:path>')
+    def view(path):
+        try:
+            return send_file(base_path / 'index.html')
+        except:
+            return not_found_message
 
     @app.route('/update', methods=['POST'])
     @cross_origin()
