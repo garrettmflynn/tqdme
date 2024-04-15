@@ -91,8 +91,6 @@ class tqdme(base_tqdm):
             self.__connected = False
 
 
-
-
 class BlockTqdmDisplay(io.StringIO):
     def write(self, s):
         pass

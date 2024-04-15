@@ -9,7 +9,7 @@ source = "vcs"
 name = "tqdme"
 version="0.0.0"
 authors = [
-  { name="Garrett Flynn", email="garrettmflynn@gmail.com" },
+  { name="Garrett Flynn", email="garrettmflynn@gmail.com" }
 ]
 description = "Forward progress from tqdm to a public website"
 readme = "README.md"
@@ -37,6 +37,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+server = [
+    "flask",
+    "flask-cors",
+    "flask-socketio",
+    "eventlet"
+] 
+
 test = [
     "pytest",
     "pytest-asyncio",
