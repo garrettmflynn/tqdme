@@ -1,6 +1,3 @@
-import eventlet
-eventlet.monkey_patch()
-
 import json
 from flask import Flask, request, jsonify, send_file
 from flask_cors import cross_origin
@@ -55,6 +52,7 @@ def create(base_path, host, port):
     def update():
         data = json.loads(request.data) if request.data else {}
 
+        to_return = data.get("requests", {})
         ip = data["ip"] = request.remote_addr # Add request IP address
 
         # Send to frontend
@@ -69,10 +67,12 @@ def create(base_path, host, port):
         if not group_exists:
             STATES[page_id] = {}      
             url = get_url(host, port, data)
-            response = dict( url = url ) # Echo
             socketio.emit('onipadded', dict(id = page_id, url = url ))
 
         STATES[page_id][identifier] = data["format"]
+
+        if to_return.get("url"):
+            response["url"] = get_url(host, port, dict(ip=ip))
 
         return jsonify(response)
     
