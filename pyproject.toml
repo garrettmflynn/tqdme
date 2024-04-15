@@ -32,7 +32,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "requests"
+    "requests",
     "tqdm>=4.49.0"
 ]
 
