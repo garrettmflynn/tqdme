@@ -1,0 +1,48 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[project]
+name = "tqdme"
+version="0.0.0"
+authors = [
+  { name="Garrett Flynn", email="garrettmflynn@gmail.com" },
+]
+description = "Forward progress from tqdm to a public website"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {file = "license.txt"}
+
+keywords = ["tqdm", "progressbar", "progressmeter", "progress", "bar", "meter", "time"]
+
+classifiers = [
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "License :: OSI Approved :: BSD License",
+    "Intended Audience :: Developers",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: MacOS",
+    "Operating System :: Unix",
+]
+
+dependencies = [
+    "requests"
+    "tqdm>=4.49.0"
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov"
+]
+
+[project.urls]
+"Homepage" = "https://github.com/tqdm.me/tqdme"
+"Bug Tracker" = "https://github.com/tqdm.me/tqdme/issues"
