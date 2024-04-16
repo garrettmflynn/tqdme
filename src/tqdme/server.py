@@ -24,13 +24,66 @@ def get_url(host, port, metadata):
     page_id = str(ip)
     return f"http://{host}:{port}/view/{page_id}" 
 
+def get_response(host, port, metadata):
+    response = dict( ok = True )
+
+    if metadata.get("url"):
+        response["url"] = get_url(host, port, dict(ip=metadata["ip"]))
+
+    return jsonify(response)
+
+def get_page_id(metadata):
+    return str(metadata['ip'])
+
+def update_states(states, metadata):
+    page_id = get_page_id(metadata)
+    identifier = f"{metadata['ppid']}/{metadata['pid']}/{metadata['id']}"
+
+    changes = dict( ip = None, id = None )
+
+    if page_id not in states:
+        states[page_id] = {}
+        changes["ip"] = True
+        
+    if identifier not in states[page_id]:
+        states[page_id][identifier] = dict(done = False)
+        changes["id"] = True
+
+    state = states[page_id][identifier]
+    state.update(metadata)
+
+    if metadata.get("done"):
+        changes["id"] = False
+
+    return state, changes
+
+
 def create(base_path, host, port):
+
+    STATES = {}
 
     app = Flask(__name__)
     app.config['CORS_HEADERS'] = 'Content-Type'
     socketio = SocketIO(app, cors_allowed_origins="*")
 
-    STATES = {}
+    def update_local_state(metadata):
+
+        metadata["ip"] = request.remote_addr # Add request IP address
+
+        state, changes = update_states(STATES, metadata)
+
+        ip_changes = changes.get("ip")
+        if ip_changes:
+            url = get_url(host, port, metadata)
+            message = 'onremoved' if not ip_changes else 'onadded'
+            socketio.emit(message, dict(id = get_page_id(metadata), url = url ))
+
+        id_changes = changes.get("id")
+        if id_changes is not None:
+            message = 'onstart' if id_changes else 'onend'
+            socketio.emit(message, dict(id = metadata['id']))
+
+        return state
 
     @app.route('/')
     def index():
@@ -39,42 +92,33 @@ def create(base_path, host, port):
         except:
             return not_found_message
 
-
     @app.route('/view/<path:path>')
     def view(path):
         try:
             return send_file(base_path / 'index.html')
         except:
             return not_found_message
+        
+    @app.route('/ping', methods=['POST'])
+    @cross_origin()
+    def ping():
+        data = json.loads(request.data) if request.data else {}
+        update_local_state(data)
+        return get_response(host, port, data)
 
     @app.route('/update', methods=['POST'])
     @cross_origin()
     def update():
         data = json.loads(request.data) if request.data else {}
 
-        to_return = data.get("requests", {})
-        ip = data["ip"] = request.remote_addr # Add request IP address
-
+        state = update_local_state(data)
+        
         # Send to frontend
-        socketio.emit('progress', data, room=ip)
-
-        response = dict( ok = True )
+        socketio.emit('progress', state, room=request.remote_addr)
 
         # Create pages for each unique IP address
-        page_id = str(ip)
-        identifier = f"{data['ppid']}/{data['pid']}/{data['id']}"
-        group_exists = page_id in STATES
-        if not group_exists:
-            STATES[page_id] = {}      
-            url = get_url(host, port, data)
-            socketio.emit('onipadded', dict(id = page_id, url = url ))
+        return get_response(host, port, data)
 
-        STATES[page_id][identifier] = data["format"]
-
-        if to_return.get("url"):
-            response["url"] = get_url(host, port, dict(ip=ip))
-
-        return jsonify(response)
     
     @socketio.on('subscribe')
     def subscribe(page_id):
@@ -94,14 +138,5 @@ def create(base_path, host, port):
         for ip in STATES.keys():
             ips[ip] = get_url(host, port, dict(ip=ip))
         socketio.emit('ips', ips)
-    
-
-    @socketio.on('connect')
-    def handle_connect(socket):
-        print('Client connected')
-
-    @socketio.on('disconnect')
-    def handle_disconnect():
-        print('Client disconnected')
 
     return app, socketio

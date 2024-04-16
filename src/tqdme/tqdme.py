@@ -5,14 +5,20 @@ import json
 from uuid import uuid4
 import requests
 from requests.exceptions import RequestException
+
+import urllib3
+
 from multiprocessing import Value
 
 import io
 
 from tqdm import tqdm as base_tqdm
 
+
 def getBoolEnv(name):
     return os.getenv(name, 'False') == 'True'
+
+ACTIVE_BARS = dict()
 
 class tqdme(base_tqdm):
 
@@ -25,39 +31,19 @@ class tqdme(base_tqdm):
 
     def __init__(self, *args, **kwargs):
 
-        # Setup tqdme metadata
-        identifier = str(uuid4())
-        ppid = os.getppid()
-        pid = os.getpid()
-        kwargs['desc'] = f"PID: {pid}" if 'desc' not in kwargs else f"{kwargs['desc']} ({pid})"
+        self.__done = False
+        self.__metadata = dict(id=str(uuid4()), pid=os.getpid(), ppid=os.getppid())
+        metadata = self.__sendrequest('ping', dict(url=True)) # Send a ping request to the server
 
-        # Block display on the console
-        if not getBoolEnv('TQDME_DISPLAY') and 'file' not in kwargs:
-            kwargs['file'] = BlockTqdmDisplay()
-
-        # Initialize the base tqdm class
-        super().__init__(*args, **kwargs)
-
-        # Initialize the metadata function
-        self.metadata = dict(id=identifier, pid=pid, ppid=ppid)
-
-        # Send initial state
+        ACTIVE_BARS[self.__metadata['id']] = self
+        
+        # If the server is connected, display the URL
         is_connected = self.__connected
-        connection_notification = self.__notifications['connected']
-
-        connection_notification.acquire()
-        to_request_url = not connection_notification.value
-        if to_request_url:
-            connection_notification.value = 1
-        connection_notification.release() # Release to modify with the request
-
-        result = self.__forward(self.metadata, self.format_dict.copy(), dict(url=to_request_url))
-
         is_connected.acquire()
         is_currently_connected = is_connected.value
         is_connected.release()
-        if is_currently_connected and result:
-            url = result.get('url')
+        if is_currently_connected and metadata:
+            url = metadata.get('url')
             if url:
                 print(f"\nVisit {url} to view progress updates\n")
 
@@ -69,45 +55,68 @@ class tqdme(base_tqdm):
                 failure_notification.value = 1
             failure_notification.release()
 
+        # Block display on the console
+        if not getBoolEnv('TQDME_DISPLAY') and 'file' not in kwargs:
+            kwargs['file'] = BlockTqdmDisplay()
+
+        # Initialize the base tqdm class
+        super().__init__(*args, **kwargs)
 
     # Override the update method to run a callback function
     def update(self, n: int = 1) -> Union[bool, None]:
         displayed = super().update(n)
 
-        is_connected = self.__connected
-        is_connected.acquire()
-        if is_connected.value:
-            self.__forward(self.metadata, self.format_dict.copy())
-        is_connected.release()
+        update = dict(format=self.format_dict.copy())
+        if update['format']['n'] == update['format']['total']:
+            update['done'] = True
 
+        self.__sendrequest('update', update)
         return displayed
     
+    # Add cleanup method
+    def __del__(self):
+        self.cleanup()
 
-    def __forward(self, metadata:dict, format_dict: dict, metadata_in_response: dict = dict()):
+    def cleanup(self):
+        if not self.__done:
+            self.__sendrequest('ping', dict(done=True))
+            ACTIVE_BARS.pop(self.__metadata['id'], None)
+            self.__done = True
 
+    # Check if the server has been rejected
+    def __isconnected(self):
         is_connected = self.__connected
         is_connected.acquire()
-        if not is_connected.value:
-            is_connected.release()
-            return
+        to_request_url = is_connected.value == 1
         is_connected.release()
+        return to_request_url
+    
+    # Send a request to the server
+    def __sendrequest(self, pathname: str, data: dict = dict()):
 
-        URL = f"{os.getenv('TQDME_URL', 'http://tqdm.me')}/update" 
-        json_data = json.dumps(obj=dict(**metadata, format=format_dict, requests=metadata_in_response))
+        if not self.__isconnected():
+            return
+
+        url = f"{os.getenv('TQDME_URL', 'http://tqdm.me')}/{pathname}" 
+
+        http = urllib3.PoolManager()
+
         try:
-            response = requests.post(url=URL, data=json_data, headers={"Content-Type": "application/json"})
-            response.raise_for_status()  # Will raise an HTTPError if the HTTP request returned an unsuccessful status code
-            result = response.json()
-            return result
+            response = http.request('POST', url, body=json.dumps(dict(**self.__metadata, **data)), headers={'Content-Type': 'application/json'})
+            if response.status == 200:
+                return json.loads(response.data)
+            else:
+                raise Exception(f"Failed to send POST request. Status code: {response.status}")
 
-        except RequestException as e:
+        except Exception as e:
+
             if getBoolEnv('TQDME_VERBOSE'):
                 print(f"An error occurred: {e}")
 
+            is_connected = self.__connected
             is_connected.acquire()
             is_connected.value = 0
             is_connected.release()
-
 
 class BlockTqdmDisplay(io.StringIO):
     def write(self, s):
@@ -115,3 +124,21 @@ class BlockTqdmDisplay(io.StringIO):
 
     def flush(self):
         pass
+
+
+# Ensure proper exit
+import atexit
+import signal
+
+def exit_handler():
+    for bar in list(ACTIVE_BARS.values()):
+        bar.cleanup()
+
+atexit.register(exit_handler)
+
+def signal_handler(signum, frame):
+    exit_handler()  # Call exit_handler before exiting
+    raise SystemExit
+
+signal.signal(signal.SIGTERM, signal_handler)
+signal.signal(signal.SIGINT, signal_handler)
