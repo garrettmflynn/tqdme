@@ -1,24 +1,26 @@
 import os
 from typing import Union
 import json
-
 from uuid import uuid4
-import requests
-from requests.exceptions import RequestException
-
 import urllib3
-
 from multiprocessing import Value
-
 import io
 
 from tqdm import tqdm as base_tqdm
-
-
-def getBoolEnv(name):
-    return os.getenv(name, 'False') == 'True'
+from .utils import getBoolEnv
 
 ACTIVE_BARS = dict()
+
+DEFAULT_CONFIG = dict(
+    verbose = lambda: getBoolEnv('TQDME_VERBOSE'),
+    display = lambda: getBoolEnv('TQDME_DISPLAY'),
+    url = lambda: os.getenv('TQDME_URL', 'http://tqdm.me'),
+    id = lambda: str(uuid4()),
+    group = lambda: os.getpid(),
+    parent = lambda: os.getppid()
+)
+
+METADATA_TO_SEND = [ 'id', 'group', 'parent' ]
 
 class tqdme(base_tqdm):
 
@@ -29,13 +31,26 @@ class tqdme(base_tqdm):
         failure= Value('i', 0)
     )
 
-    def __init__(self, *args, **kwargs):
+    def __init__(
+            self, 
+            *args, 
+            tqdme_options: dict = dict(),
+            **kwargs
+        ):
+
+        config = tqdme_options.copy()
+        # Resolve the configuration options for TQDME
+        for key, func in DEFAULT_CONFIG.items():
+            if key not in config:
+                config[key] = func()
+
+        self.__tqdme = config
 
         self.__done = False
-        self.__metadata = dict(id=str(uuid4()), pid=os.getpid(), ppid=os.getppid())
+
         metadata = self.__sendrequest('ping', dict(url=True)) # Send a ping request to the server
 
-        ACTIVE_BARS[self.__metadata['id']] = self
+        ACTIVE_BARS[self.__tqdme['id']] = self
         
         # If the server is connected, display the URL
         is_connected = self.__connected
@@ -56,7 +71,7 @@ class tqdme(base_tqdm):
             failure_notification.release()
 
         # Block display on the console
-        if not getBoolEnv('TQDME_DISPLAY') and 'file' not in kwargs:
+        if not self.__tqdme["display"] and 'file' not in kwargs:
             kwargs['file'] = BlockTqdmDisplay()
 
         # Initialize the base tqdm class
@@ -80,7 +95,7 @@ class tqdme(base_tqdm):
     def cleanup(self):
         if not self.__done:
             self.__sendrequest('ping', dict(done=True))
-            ACTIVE_BARS.pop(self.__metadata['id'], None)
+            ACTIVE_BARS.pop(self.__tqdme['id'], None)
             self.__done = True
 
     # Check if the server has been rejected
@@ -97,12 +112,15 @@ class tqdme(base_tqdm):
         if not self.__isconnected():
             return
 
-        url = f"{os.getenv('TQDME_URL', 'http://tqdm.me')}/{pathname}" 
+        url = f"{self.__tqdme['url']}/{pathname}" 
 
         http = urllib3.PoolManager()
 
         try:
-            response = http.request('POST', url, body=json.dumps(dict(**self.__metadata, **data)), headers={'Content-Type': 'application/json'})
+            to_send = { key: self.__tqdme[key] for key in METADATA_TO_SEND }
+            to_send.update(data)
+
+            response = http.request('POST', url, body=json.dumps(to_send), headers={'Content-Type': 'application/json'})
             if response.status == 200:
                 return json.loads(response.data)
             else:
@@ -110,7 +128,7 @@ class tqdme(base_tqdm):
 
         except Exception as e:
 
-            if getBoolEnv('TQDME_VERBOSE'):
+            if self.__tqdme["verbose"]:
                 print(f"An error occurred: {e}")
 
             is_connected = self.__connected

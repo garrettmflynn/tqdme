@@ -20,30 +20,30 @@ class Server:
         return get_url(self.host, self.port, metadata)
 
 def get_url(host, port, metadata):
-    ip = metadata["ip"]
-    page_id = str(ip)
+    user_id = metadata["user_id"]
+    page_id = str(user_id)
     return f"http://{host}:{port}/view/{page_id}" 
 
 def get_response(host, port, metadata):
     response = dict( ok = True )
 
     if metadata.get("url"):
-        response["url"] = get_url(host, port, dict(ip=metadata["ip"]))
+        response["url"] = get_url(host, port, dict(user_id=metadata["user_id"]))
 
     return jsonify(response)
 
 def get_page_id(metadata):
-    return str(metadata['ip'])
+    return str(metadata['user_id'])
 
 def update_states(states, metadata):
     page_id = get_page_id(metadata)
-    identifier = f"{metadata['ppid']}/{metadata['pid']}/{metadata['id']}"
+    identifier = f"{metadata['parent']}/{metadata['group']}/{metadata['id']}"
 
-    changes = dict( ip = None, id = None )
+    changes = dict( user_id = None, id = None )
 
     if page_id not in states:
         states[page_id] = {}
-        changes["ip"] = True
+        changes["user_id"] = True
         
     if identifier not in states[page_id]:
         states[page_id][identifier] = dict(done = False)
@@ -68,14 +68,14 @@ def create(base_path, host, port):
 
     def update_local_state(metadata):
 
-        metadata["ip"] = request.remote_addr # Add request IP address
+        metadata["user_id"] = request.remote_addr # Add request IP address as the unique User ID
 
         state, changes = update_states(STATES, metadata)
 
-        ip_changes = changes.get("ip")
-        if ip_changes:
+        user_changes = changes.get("user_id")
+        if user_changes:
             url = get_url(host, port, metadata)
-            message = 'onremoved' if not ip_changes else 'onadded'
+            message = 'onremoved' if not user_changes else 'onadded'
             socketio.emit(message, dict(id = get_page_id(metadata), url = url ))
 
         id_changes = changes.get("id")
@@ -116,27 +116,27 @@ def create(base_path, host, port):
         # Send to frontend
         socketio.emit('progress', state, room=request.remote_addr)
 
-        # Create pages for each unique IP address
+        # Create pages for each User ID
         return get_response(host, port, data)
 
     
     @socketio.on('subscribe')
     def subscribe(page_id):
-        ip = page_id
-        join_room(ip) # Join room with IP address
-        socketio.emit('init', dict(ip=ip, states=STATES.get(ip, {}))) # Send initial state to client
+        user_id = page_id
+        join_room(user_id) # Join room with User ID
+        socketio.emit('init', dict(user_id=user_id, states=STATES.get(user_id, {}))) # Send initial state to client
 
     @socketio.on('unsubscribe')
     def unsubscribe(page_id):
-        ip = page_id
-        leave_room(ip) # Leave room with IP address
+        user_id = page_id
+        leave_room(user_id) # Leave room with User ID
 
 
     @socketio.on('discover')
     def discover():
-        ips = {}
-        for ip in STATES.keys():
-            ips[ip] = get_url(host, port, dict(ip=ip))
-        socketio.emit('ips', ips)
+        user_ids = {}
+        for user_id in STATES.keys():
+            user_ids[user_id] = get_url(host, port, dict(user_id=user_id))
+        socketio.emit('users', user_ids)
 
     return app, socketio
