@@ -77,15 +77,15 @@ class tqdme(base_tqdm):
         # Initialize the base tqdm class
         super().__init__(*args, **kwargs)
 
+        # Send initialization
+        update = dict(format=self.format_dict.copy())
+        self.__sendrequest('update', update)
+
     # Override the update method to run a callback function
     def update(self, n: int = 1) -> Union[bool, None]:
         displayed = super().update(n)
 
-        update = dict(format=self.format_dict.copy())
-        if update['format']['n'] == update['format']['total']:
-            update['done'] = True
-
-        self.__sendrequest('update', update)
+        self.__sendupdate()
         return displayed
     
     # Add cleanup method
@@ -97,6 +97,14 @@ class tqdme(base_tqdm):
             self.__sendrequest('ping', dict(done=True))
             ACTIVE_BARS.pop(self.__tqdme['id'], None)
             self.__done = True
+
+    # Always send a consistent update
+    def __sendupdate(self):
+        update = dict(format=self.format_dict.copy())
+        if update['format']['n'] == update['format']['total']:
+            update['done'] = True
+
+        return self.__sendrequest('update', update)
 
     # Check if the server has been rejected
     def __isconnected(self):
