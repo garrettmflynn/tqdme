@@ -1,9 +1,4 @@
-"""Demo of parallel tqdm visualization using tqdm.me polyfill"""
-
-# Replace tqdm with tqdme (works in other packages)
-from src.tqdme import tqdme
-import tqdm
-tqdm.tqdm = tqdme
+"""Demo of parallel tqdme visualization"""
 
 # Load environment variables
 from dotenv import load_dotenv
@@ -14,9 +9,8 @@ import time
 from datetime import datetime
 from typing import List
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from threading import Thread
 
-from tqdm import tqdm
+from tqdme import tqdme
 
 N_JOBS = 3
 
@@ -49,7 +43,7 @@ def _run_sleep_tasks_in_subprocess(
         Each index would map to a different tqdm position.
     """
 
-    sub_progress_bar = tqdm(
+    sub_progress_bar = tqdme(
         iterable=task_times,
         position=iteration_index + 1,
         desc=f"Progress on iteration {iteration_index}",
@@ -84,7 +78,7 @@ def run_parallel_processes(*, all_task_times: List[List[float]], n_jobs: int = 2
             )
 
         total_tasks_iterable = as_completed(futures)
-        total_tasks_progress_bar = tqdm(
+        total_tasks_progress_bar = tqdme(
             iterable=total_tasks_iterable, 
             total=len(all_task_times), 
             desc=f"Total tasks completed",
