@@ -10,6 +10,9 @@ from datetime import datetime
 from typing import List
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
+from uuid import uuid4
+run_id = uuid4()
+
 from tqdme import tqdme
 
 N_JOBS = 3
@@ -59,8 +62,7 @@ def _run_sleep_tasks_in_subprocess(
 
 def run_parallel_processes(*, all_task_times: List[List[float]], n_jobs: int = 2):
 
-    group = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-    
+    group = f'Parallel Bars Demo — Run {run_id}'    
 
     futures = list()
     with ProcessPoolExecutor(max_workers=n_jobs) as executor:

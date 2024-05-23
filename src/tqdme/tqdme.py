@@ -3,6 +3,8 @@ from typing import Union
 import json
 from uuid import uuid4
 import urllib3
+from urllib.parse import urljoin
+
 from multiprocessing import Value
 import io
 
@@ -15,8 +17,7 @@ DEFAULT_CONFIG = dict(
     user_id = lambda: os.getenv('TQDME_USER_ID', None),
     verbose = lambda: getBoolEnv('TQDME_VERBOSE'),
     display = lambda: getBoolEnv('TQDME_DISPLAY'),
-    # url = lambda: os.getenv('TQDME_URL', 'http://tqdm.me'),
-    url = lambda: os.getenv('TQDME_URL', 'https://tqdm-me-cde34051800a.herokuapp.com/'),
+    url = lambda: os.getenv('TQDME_URL', 'https://tqdm.me/'),
     id = lambda: str(uuid4()),
     group = lambda: os.getpid(),
     parent = lambda: os.getppid()
@@ -62,7 +63,7 @@ class tqdme(base_tqdm):
         if is_currently_connected and metadata:
             pathname = metadata.get('pathname')
             if pathname:
-                print(f"\nVisit {self.__tqdme['url']}{pathname} to view progress updates\n")
+                print(f"\nVisit {urljoin(self.__tqdme['url'], pathname)} to view progress updates\n")
 
         else:
             failure_notification = self.__notifications['failure']

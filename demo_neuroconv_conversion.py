@@ -4,10 +4,20 @@ from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv() 
 
+from uuid import uuid4
+run_id = uuid4()
+
 # Replace TQDM in NeuroConv
 from tqdme import tqdme
 import tqdm
-tqdm.tqdm = tqdme
+
+class CustomTQDME(tqdme):
+
+    def __init__(self, *args, tqdme_options=dict(), **kwargs):
+        tqdme_options["group"] = f'NeuroConv Demo — Run {run_id}'
+        super().__init__(*args, tqdme_options=tqdme_options, **kwargs)
+
+tqdm.tqdm = CustomTQDME
 
 # Import NeuroConv
 from neuroconv import NWBConverter
