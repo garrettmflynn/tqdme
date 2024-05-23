@@ -12,6 +12,7 @@ from .utils import getBoolEnv
 ACTIVE_BARS = dict()
 
 DEFAULT_CONFIG = dict(
+    user_id = lambda: os.getenv('TQDME_USER_ID', None),
     verbose = lambda: getBoolEnv('TQDME_VERBOSE'),
     display = lambda: getBoolEnv('TQDME_DISPLAY'),
     url = lambda: os.getenv('TQDME_URL', 'http://tqdm.me'),
@@ -78,8 +79,7 @@ class tqdme(base_tqdm):
         super().__init__(*args, **kwargs)
 
         # Send initialization
-        update = dict(format=self.format_dict.copy())
-        self.__sendrequest('update', update)
+        self.__sendupdate()
 
     # Override the update method to run a callback function
     def update(self, n: int = 1) -> Union[bool, None]:
@@ -101,6 +101,7 @@ class tqdme(base_tqdm):
     # Always send a consistent update
     def __sendupdate(self):
         update = dict(format=self.format_dict.copy())
+
         if update['format']['n'] == update['format']['total']:
             update['done'] = True
 
@@ -123,6 +124,11 @@ class tqdme(base_tqdm):
         url = f"{self.__tqdme['url']}/{pathname}" 
 
         http = urllib3.PoolManager()
+
+        # Provide arbitrary user_id on all requests (if exists)
+        if self.__tqdme["user_id"] is not None:
+            data['user_id'] = self.__tqdme["user_id"]
+
 
         try:
             to_send = { key: self.__tqdme[key] for key in METADATA_TO_SEND }

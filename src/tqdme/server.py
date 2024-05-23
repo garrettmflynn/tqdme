@@ -58,6 +58,11 @@ def update_states(states, metadata):
     return state, changes
 
 
+def get_client_ip():
+    if request.headers.get('X-Forwarded-For'):
+        return request.headers.get('X-Forwarded-For').split(',')[0]
+    return request.remote_addr
+
 def create(base_path, host, port):
 
     STATES = {}
@@ -68,7 +73,8 @@ def create(base_path, host, port):
 
     def update_local_state(metadata):
 
-        metadata["user_id"] = request.remote_addr # Add request IP address as the unique User ID
+        if (not metadata.get("user_id")):
+            metadata["user_id"] = get_client_ip() # Add request IP address as the unique User ID
 
         state, changes = update_states(STATES, metadata)
 
@@ -114,7 +120,7 @@ def create(base_path, host, port):
         state = update_local_state(data)
         
         # Send to frontend
-        socketio.emit('progress', state, room=request.remote_addr)
+        socketio.emit('progress', state, room=state["user_id"])
 
         # Create pages for each User ID
         return get_response(host, port, data)
