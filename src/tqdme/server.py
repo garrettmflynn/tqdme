@@ -3,6 +3,12 @@ from flask import Flask, request, jsonify, send_file
 from flask_cors import cross_origin
 from flask_socketio import SocketIO, join_room, leave_room
 
+from datetime import datetime, timezone
+from uuid import uuid4
+
+def get_timestamp():
+    return datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ') # Format in a way that is compatible with JavaScript Date object
+
 not_found_message = "<main style='padding: 25px'><h1>404 Error — No index.html found in the base path.</h1><p>Please provide one to visualize `tqdm` updates.</p></main>"
 
 class Server:
@@ -21,8 +27,7 @@ class Server:
         self.socketio.run(self.app, host=self.host, port=self.port)
 
     def get_pathname(self, metadata):
-        user_id = metadata["user_id"]
-        page_id = str(user_id)
+        page_id = str(metadata["user_id"])
         return f"/view/{page_id}" 
 
     def get_response(self, metadata):
@@ -33,24 +38,27 @@ class Server:
 
         return jsonify(response)
 
-    def get_page_id(self, metadata):
-        return str(metadata['user_id'])
-
     def update_states(self, metadata):
-        page_id = self.get_page_id(metadata)
+        user_id = metadata["user_id"]
         identifier = f"{metadata['parent']}/{metadata['group']}/{metadata['id']}"
 
         changes = dict( user_id = None, id = None )
 
-        if page_id not in self.states:
-            self.states[page_id] = {}
+        if user_id not in self.states:
+            self.states[user_id] = dict()
             changes["user_id"] = True
             
-        if identifier not in self.states[page_id]:
-            self.states[page_id][identifier] = dict(done = False)
+
+        user_states = self.states[user_id]
+        if identifier not in user_states:
+            user_states[identifier] = dict( 
+                done = False, 
+                timestamp=get_timestamp() 
+            )
+
             changes["id"] = True
 
-        state = self.states[page_id][identifier]
+        state = user_states[identifier]
         state.update(metadata)
 
         if metadata.get("done"):
@@ -69,13 +77,13 @@ class Server:
             
             user_id = self.ip_to_user_map.get(ip_address)
             if (user_id is None):
-                user_id = self.ip_to_user_map[ip_address] = len(self.ip_to_user_map) + 1
+                user_id = self.ip_to_user_map[ip_address] = str(uuid4())
 
         return user_id
 
     def update_state(self, metadata):
 
-        metadata["user_id"] = self.get_client_id(metadata)
+        user_id = metadata["user_id"] = self.get_client_id(metadata)
 
         state, changes = self.update_states(metadata)
 
@@ -83,12 +91,12 @@ class Server:
         if user_changes:
             pathname = self.get_pathname(metadata)
             message = 'onremoved' if not user_changes else 'onadded'
-            self.socketio.emit(message, dict(id = self.get_page_id(metadata), pathname = pathname ))
+            self.socketio.emit(message, dict( id = user_id, pathname = pathname ) )
 
         id_changes = changes.get("id")
         if id_changes is not None:
             message = 'onstart' if id_changes else 'onend'
-            self.socketio.emit(message, dict(id = metadata['id']))
+            self.socketio.emit(message, dict(id = metadata['id']), room=user_id)
 
         return state
 
@@ -134,14 +142,12 @@ class Server:
 
         
         @socketio.on('subscribe')
-        def subscribe(page_id):
-            user_id = page_id
+        def subscribe(user_id):
             join_room(user_id) # Join room with User ID
             socketio.emit('init', dict(user_id=user_id, states=self.states.get(user_id, {}))) # Send initial state to client
 
         @socketio.on('unsubscribe')
-        def unsubscribe(page_id):
-            user_id = page_id
+        def unsubscribe(user_id):
             leave_room(user_id) # Leave room with User ID
 
 

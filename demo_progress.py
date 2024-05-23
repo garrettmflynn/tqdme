@@ -59,8 +59,7 @@ def _run_sleep_tasks_in_subprocess(
 
 def run_parallel_processes(*, all_task_times: List[List[float]], n_jobs: int = 2):
 
-    utc_now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-    group = utc_now
+    group = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
     
 
     futures = list()
