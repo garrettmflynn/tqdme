@@ -7,7 +7,7 @@ source = "vcs"
 
 [project]
 name = "tqdme"
-version="0.0.2"
+version="0.0.3"
 authors = [
   { name="Garrett Flynn", email="garrettmflynn@gmail.com" }
 ]
