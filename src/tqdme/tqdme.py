@@ -15,7 +15,8 @@ DEFAULT_CONFIG = dict(
     user_id = lambda: os.getenv('TQDME_USER_ID', None),
     verbose = lambda: getBoolEnv('TQDME_VERBOSE'),
     display = lambda: getBoolEnv('TQDME_DISPLAY'),
-    url = lambda: os.getenv('TQDME_URL', 'http://tqdm.me'),
+    # url = lambda: os.getenv('TQDME_URL', 'http://tqdm.me'),
+    url = lambda: os.getenv('TQDME_URL', 'https://tqdm-me-cde34051800a.herokuapp.com/'),
     id = lambda: str(uuid4()),
     group = lambda: os.getpid(),
     parent = lambda: os.getppid()
@@ -49,7 +50,7 @@ class tqdme(base_tqdm):
 
         self.__done = False
 
-        metadata = self.__sendrequest('ping', dict(url=True)) # Send a ping request to the server
+        metadata = self.__sendrequest('ping', dict(pathname=True)) # Send a ping request to the server
 
         ACTIVE_BARS[self.__tqdme['id']] = self
         
@@ -59,9 +60,9 @@ class tqdme(base_tqdm):
         is_currently_connected = is_connected.value
         is_connected.release()
         if is_currently_connected and metadata:
-            url = metadata.get('url')
-            if url:
-                print(f"\nVisit {url} to view progress updates\n")
+            pathname = metadata.get('pathname')
+            if pathname:
+                print(f"\nVisit {self.__tqdme['url']}{pathname} to view progress updates\n")
 
         else:
             failure_notification = self.__notifications['failure']

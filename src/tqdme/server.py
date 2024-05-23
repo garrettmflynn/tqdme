@@ -16,19 +16,16 @@ class Server:
     def run(self):
         self.socketio.run(self.app, host=self.host, port=self.port)
 
-    def get_url(self, metadata):
-        return get_url(self.host, self.port, metadata)
-
-def get_url(host, port, metadata):
+def get_pathname(metadata):
     user_id = metadata["user_id"]
     page_id = str(user_id)
-    return f"http://{host}:{port}/view/{page_id}" 
+    return f"/view/{page_id}" 
 
-def get_response(host, port, metadata):
+def get_response(metadata):
     response = dict( ok = True )
 
-    if metadata.get("url"):
-        response["url"] = get_url(host, port, dict(user_id=metadata["user_id"]))
+    if metadata.get("pathname"):
+        response["pathname"] = get_pathname(dict(user_id=metadata["user_id"]))
 
     return jsonify(response)
 
@@ -80,9 +77,9 @@ def create(base_path, host, port):
 
         user_changes = changes.get("user_id")
         if user_changes:
-            url = get_url(host, port, metadata)
+            pathname = get_pathname(metadata)
             message = 'onremoved' if not user_changes else 'onadded'
-            socketio.emit(message, dict(id = get_page_id(metadata), url = url ))
+            socketio.emit(message, dict(id = get_page_id(metadata), pathname = pathname ))
 
         id_changes = changes.get("id")
         if id_changes is not None:
@@ -110,7 +107,7 @@ def create(base_path, host, port):
     def ping():
         data = json.loads(request.data) if request.data else {}
         update_local_state(data)
-        return get_response(host, port, data)
+        return get_response(data)
 
     @app.route('/update', methods=['POST'])
     @cross_origin()
@@ -123,7 +120,7 @@ def create(base_path, host, port):
         socketio.emit('progress', state, room=state["user_id"])
 
         # Create pages for each User ID
-        return get_response(host, port, data)
+        return get_response(data)
 
     
     @socketio.on('subscribe')
@@ -142,7 +139,7 @@ def create(base_path, host, port):
     def discover():
         user_ids = {}
         for user_id in STATES.keys():
-            user_ids[user_id] = get_url(host, port, dict(user_id=user_id))
+            user_ids[user_id] = get_pathname(dict(user_id=user_id))
         socketio.emit('users', user_ids)
 
     return app, socketio
