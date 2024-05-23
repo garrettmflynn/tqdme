@@ -11,7 +11,8 @@ from typing import List
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 from uuid import uuid4
-run_id = uuid4()
+run_id = str(uuid4())[:8]
+base_group = f'Parallel Bars Demo — Run {run_id}'
 
 from tqdme import tqdme
 
@@ -60,9 +61,13 @@ def _run_sleep_tasks_in_subprocess(
         time.sleep(sleep_time)
 
 
-def run_parallel_processes(*, all_task_times: List[List[float]], n_jobs: int = 2):
+def run_parallel_processes(
+        *, 
+        group: str,
+        all_task_times: List[List[float]], 
+        n_jobs: int = 2
+    ):
 
-    group = f'Parallel Bars Demo — Run {run_id}'    
 
     futures = list()
     with ProcessPoolExecutor(max_workers=n_jobs) as executor:
@@ -93,6 +98,6 @@ def run_parallel_processes(*, all_task_times: List[List[float]], n_jobs: int = 2
             pass
 
 if __name__ == '__main__':
-    run_parallel_processes(all_task_times=TASK_TIMES, n_jobs=N_JOBS)
-    run_parallel_processes(all_task_times=TASK_TIMES, n_jobs=N_JOBS)
-
+    # Run run_parallel_processes twice using a loop
+    for i in range(2):
+        run_parallel_processes(all_task_times=TASK_TIMES, n_jobs=N_JOBS, group=f"{base_group} ({i})")

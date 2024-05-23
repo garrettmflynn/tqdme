@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv() 
 
 from uuid import uuid4
-run_id = uuid4()
+run_id = str(uuid4())[:8]
 
 # Replace TQDM in NeuroConv
 from tqdme import tqdme
