@@ -1,2 +1,2 @@
 from .tqdme import tqdme
-from .server import create
+from .server import Server

@@ -1,4 +1,4 @@
-from src.tqdme.server import Server
+from tqdme.server import Server
 from flask import send_from_directory
 from pathlib import Path
 
