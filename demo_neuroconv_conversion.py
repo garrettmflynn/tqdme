@@ -7,9 +7,7 @@ load_dotenv()
 from uuid import uuid4
 run_id = str(uuid4())[:8]
 
-# Replace TQDM in NeuroConv
 from tqdme import tqdme
-import tqdm
 
 class CustomTQDME(tqdme):
 
@@ -17,7 +15,9 @@ class CustomTQDME(tqdme):
         tqdme_options["group"] = f'NeuroConv Demo — Run {run_id}'
         super().__init__(*args, tqdme_options=tqdme_options, **kwargs)
 
-tqdm.tqdm = CustomTQDME
+# # Replace TQDM in NeuroConv
+# import tqdm
+# tqdm.tqdm = CustomTQDME
 
 # Import NeuroConv
 from neuroconv import NWBConverter
@@ -65,7 +65,7 @@ def get_conversion_options(converter):
         if available_opts.get("iterator_opts"):
             options[interface]["iterator_opts"] = dict(
                 display_progress=True,
-                # progress_bar_class=tqdme
+                progress_bar_class=CustomTQDME
             )
 
     return options
